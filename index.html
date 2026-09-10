@@ -414,11 +414,12 @@ function pintaHoje(){
 
   const alvo = $('#listaHoje');
   if(!CRONO.length){
-    alvo.innerHTML = `<div class="vazio"><div class="g">◔</div><p>Nenhum cronograma carregado.</p><p>Vá em Envio e carregue o arquivo do mês.</p></div>`;
+    alvo.innerHTML = `<div class="vazio"><div class="g">◔</div><p>Nenhum cronograma recebido.</p><p>${CFG.modo === 'consulta' ? 'Abra esta página com sinal para receber a programação.' : 'Abra o aplicativo com sinal para receber a programação.'}</p></div>`;
     return;
   }
   if(!itens.length){
-    alvo.innerHTML = `<div class="vazio"><div class="g">○</div><p>Nada programado para ${brData(d)}.</p><p>Você ainda pode registrar um acompanhamento fora do cronograma.</p></div>`;
+    alvo.innerHTML = `<div class="vazio"><div class="g">○</div><p>Nada programado para ${brData(d)}.</p>` +
+      (CFG.modo === 'consulta' ? '<p>Use a aba Cronograma para ver os outros dias.</p>' : '<p>Você ainda pode registrar um acompanhamento fora do cronograma.</p>') + `</div>`;
     return;
   }
   alvo.innerHTML = itens.map(c => cartao(c, true)).join('');
@@ -854,7 +855,7 @@ if(viaURL.get('modo')){ CFG.modo = viaURL.get('modo'); S('vl_cfg', CFG) }
 const consulta = CFG.modo === 'consulta';
 document.body.classList.toggle('consulta', consulta);
 if(consulta){
-  $('#avisoConsulta').innerHTML = '<div class="aviso azul">Modo consulta. Você está vendo a programação do instrutor; o registro é feito pelo aparelho dele.</div>';
+  $('#avisoConsulta').innerHTML = '<div class="aviso azul">Modo consulta. Acompanhe aqui a programação do mês, a aderência e a carteira de condutores.</div>';
   $('#btnQuem').textContent = 'Consulta';
 }
 topoQuem();
