@@ -424,6 +424,14 @@ function pintaHoje(){
   ligaCartoes(alvo);
 }
 
+const COND_REDUNDANTE = ['pendente subsolo', 'pendente superfície', 'pendente superficie'];
+function etiquetaCondutor(c, p){
+  const v = String((c.cond || (p ? p.cond : '') || '')).trim();
+  if(!v) return '';
+  if(COND_REDUNDANTE.includes(v.toLowerCase())) return '';
+  return `<span class="tag cinza">${esc(v)}</span>`;
+}
+
 function cartao(c, comAcoes){
   const p = porNome(c.nome);
   const pri = c.pri || (p ? p.pri : 4);
@@ -440,7 +448,7 @@ function cartao(c, comAcoes){
           ${c.turno ? `<span class="tag cinza">${esc(c.turno)}</span>` : ''}
           <span class="tag">${esc(c.tipo || 'Reciclagem periódica')}</span>
           ${c.vl ? `<span class="tag cinza">${esc(c.vl)}</span>` : ''}
-          ${p ? `<span class="tag cinza">${esc(p.cond)}</span>` : ''}
+          ${etiquetaCondutor(c, p)}
           ${tagStatus}
         </div>
       </div>
@@ -714,7 +722,7 @@ function pintaFila(){
 
 async function enviar(){
   if(!CFG.endpoint){
-    alerta('O endereço da base ainda não foi configurado. Fale com a Aline.');
+    alerta('Este atalho foi salvo sem o endereço da base. Apague o ícone da tela de início e adicione de novo, abrindo pelo link completo que a Aline enviou.');
     return;
   }
   if(!navigator.onLine){ alerta('Sem sinal. Tente de novo na superfície.'); return }
@@ -792,7 +800,7 @@ ${fichas}</body></html>`;
 let sincronizando = false;
 async function sincronizar(manual){
   if(sincronizando) return;
-  if(!CFG.endpoint){ if(manual) alerta('O endereço da base ainda não foi configurado. Fale com a Aline.'); return }
+  if(!CFG.endpoint){ if(manual) alerta('Este atalho foi salvo sem o endereço da base. Apague o ícone da tela de início e adicione de novo, abrindo pelo link completo que a Aline enviou.'); return }
   if(!navigator.onLine){ if(manual) alerta('Sem sinal. O cronograma que já está no aparelho continua valendo.'); return }
   sincronizando = true;
   const b = $('#btnSincronizar'); if(b){ b.disabled = true; b.textContent = 'Atualizando...' }
@@ -840,7 +848,7 @@ function listaNomes(){
 }
 listaNomes();
 const viaURL = new URLSearchParams(location.search);
-if(viaURL.get('api')){ CFG.endpoint = viaURL.get('api'); S('vl_cfg', CFG); history.replaceState({}, '', location.pathname) }
+if(viaURL.get('api')){ CFG.endpoint = viaURL.get('api'); S('vl_cfg', CFG) }
 if(viaURL.get('instrutor')){ CFG.instrutor = viaURL.get('instrutor'); S('vl_cfg', CFG) }
 if(viaURL.get('modo')){ CFG.modo = viaURL.get('modo'); S('vl_cfg', CFG) }
 const consulta = CFG.modo === 'consulta';

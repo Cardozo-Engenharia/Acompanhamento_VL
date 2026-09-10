@@ -2,7 +2,7 @@
    Funciona com qualquer nome de arquivo: a página informa o próprio endereço
    no momento do registro (sw.js?page=...). */
 
-const CACHE = 'vl-acomp-v2';
+const CACHE = 'vl-acomp-v3';
 const PAGINA = new URL(self.location).searchParams.get('page') || './';
 
 self.addEventListener('install', e => {
@@ -35,9 +35,9 @@ self.addEventListener('fetch', e => {
         return resp;
       })
       .catch(() =>
-        caches.match(e.request)
+        caches.match(e.request, { ignoreSearch: e.request.mode === 'navigate' })
           .then(r => r || (e.request.mode === 'navigate'
-            ? caches.match(PAGINA).then(x => x || caches.match('./'))
+            ? caches.match(PAGINA, { ignoreSearch: true }).then(x => x || caches.match('./'))
             : undefined))
       )
   );
