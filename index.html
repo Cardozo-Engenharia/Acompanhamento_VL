@@ -317,6 +317,20 @@ textarea{min-height:78px;resize:vertical}
   </div>
 </div>
 
+<!-- ================= MODAL QUEM REGISTRA ================= -->
+<div class="fundo" id="modalQuem">
+  <div class="folha">
+    <div class="puxador"></div>
+    <h3>Quem está registrando hoje?</h3>
+    <div class="sub">O nome fica gravado em cada ficha como responsável pelo acompanhamento.</div>
+    <div class="grupo">
+      <label class="rot" for="qNome">Nome do instrutor <span class="obr">*</span></label>
+      <input type="text" id="qNome" placeholder="Nome de quem vai acompanhar" autocomplete="name">
+    </div>
+    <button class="btn" id="qConfirmar">Confirmar</button>
+  </div>
+</div>
+
 <!-- ================= MODAL NÃO REALIZADO ================= -->
 <div class="fundo" id="modalMotivo">
   <div class="folha">
@@ -351,7 +365,7 @@ const S = (k,v) => { try { localStorage.setItem(k, JSON.stringify(v)) } catch(e)
 let CARTEIRA = G('vl_carteira') || [];
 let CRONO = G('vl_crono') || [];
 let FILA  = G('vl_fila')  || [];
-let CFG   = G('vl_cfg')   || { instrutor:'', endpoint:'', modo:'registro' };
+let CFG   = G('vl_cfg')   || { instrutor:'', endpoint:'', modo:'registro', instrutorDia:'' };
 let ficha = null;
 let alvoMotivo = null;
 
@@ -508,8 +522,34 @@ function pintaCarteira(){
 }
 ['#cCond','#cUnidade','#cBusca'].forEach(s => $(s).oninput = pintaCarteira);
 
+/* ============ quem está registrando ============ */
+function precisaConfirmar(){ return !CFG.instrutor || CFG.instrutorDia !== hoje() }
+let apos = null;
+function pedeNome(depois){
+  apos = depois;
+  $('#qNome').value = CFG.instrutor || '';
+  $('#modalQuem').classList.add('on');
+  setTimeout(() => $('#qNome').focus(), 120);
+}
+function topoQuem(){
+  if(CFG.modo === 'consulta'){ $('#btnQuem').textContent = 'Consulta'; return }
+  $('#btnQuem').innerHTML = CFG.instrutor
+    ? 'Registrando como <b>' + esc(CFG.instrutor) + '</b>'
+    : 'Toque para informar quem está registrando';
+}
+$('#qConfirmar').onclick = () => {
+  const n = $('#qNome').value.trim();
+  if(n.length < 3){ alerta('Escreva o nome de quem está registrando.'); return }
+  CFG.instrutor = n; CFG.instrutorDia = hoje(); S('vl_cfg', CFG);
+  $('#cfgInstrutor').value = n; topoQuem();
+  $('#modalQuem').classList.remove('on');
+  const f = apos; apos = null; if(f) f();
+};
+$('#modalQuem').onclick = e => { if(e.target.id === 'modalQuem' && CFG.instrutor) $('#modalQuem').classList.remove('on') };
+
 /* ============ ficha ============ */
 function abrirFicha(c){
+  if(precisaConfirmar()){ pedeNome(() => abrirFicha(c)); return }
   ficha = { crono:c || null, itens:new Set(), resultado:'Apto', assinado:false };
   const p = c ? porNome(c.nome) : null;
   $('#grupoAvulso').hidden = !!c;
@@ -592,7 +632,6 @@ $('#btnSalvar').onclick = () => {
   if(!ficha.resultado) falta.push('resultado');
   if(!ficha.assinado) falta.push('assinatura do colaborador');
   if(falta.length){ alerta('Falta preencher: ' + falta.join(', ') + '.'); return }
-  if(!CFG.instrutor){ alerta('Informe o nome do instrutor em Envio > Ajustes antes do primeiro registro.'); irPara('fila'); return }
 
   const p = porNome(nome);
   const reg = {
@@ -617,6 +656,7 @@ $('#btnSalvar').onclick = () => {
 
 /* ============ não realizado ============ */
 function abrirMotivo(c){
+  if(precisaConfirmar()){ pedeNome(() => abrirMotivo(c)); return }
   alvoMotivo = c;
   $('#motivoNome').textContent = c.nome + ' — ' + brData(c.data);
   $('#mSel').innerHTML = '<option value="">Selecione</option>' + MOTIVOS.map(m=>`<option>${esc(m)}</option>`).join('');
@@ -629,7 +669,6 @@ $('#mSalvar').onclick = () => {
   const m = $('#mSel').value;
   if(!m){ alerta('Selecione o motivo.'); return }
   if(m.startsWith('Outro') && !$('#mObs').value.trim()){ alerta('Descreva o motivo no campo de detalhe.'); return }
-  if(!CFG.instrutor){ alerta('Informe o nome do instrutor em Envio > Ajustes.'); irPara('fila'); return }
   const c = alvoMotivo;
   FILA.push({ idReg:'R'+Date.now().toString(36).toUpperCase(), idCrono:c.id, nome:c.nome, data:c.data,
     ini:'', fim:'', unidade:c.unidade, equipe:c.equipe, turno:c.turno||'', local:'', vl:'',
@@ -778,8 +817,7 @@ addEventListener('online', () => sincronizar(false));
 
 /* ============ ajustes ============ */
 $('#cfgInstrutor').oninput = e => {
-  CFG.instrutor = e.target.value.trim(); S('vl_cfg', CFG);
-  if(CFG.modo !== 'consulta') $('#btnQuem').innerHTML = CFG.instrutor ? 'Registrando como <b>' + esc(CFG.instrutor) + '</b>' : 'Toque para informar quem está registrando';
+  CFG.instrutor = e.target.value.trim(); CFG.instrutorDia = hoje(); S('vl_cfg', CFG); topoQuem();
 };
 $('#cfgEndpoint').oninput  = e => { CFG.endpoint  = e.target.value.trim(); S('vl_cfg', CFG) };
 $('#btnAvulso').onclick = () => abrirFicha(null);
@@ -810,10 +848,9 @@ document.body.classList.toggle('consulta', consulta);
 if(consulta){
   $('#avisoConsulta').innerHTML = '<div class="aviso azul">Modo consulta. Você está vendo a programação do instrutor; o registro é feito pelo aparelho dele.</div>';
   $('#btnQuem').textContent = 'Consulta';
-} else {
-  $('#btnQuem').innerHTML = CFG.instrutor ? 'Registrando como <b>' + esc(CFG.instrutor) + '</b>' : 'Toque para informar quem está registrando';
 }
-$('#btnQuem').onclick = () => irPara('fila');
+topoQuem();
+$('#btnQuem').onclick = () => { if(CFG.modo !== 'consulta') pedeNome(null) };
 $('#cfgInstrutor').value = CFG.instrutor; $('#cfgEndpoint').value = CFG.endpoint;
 $('#locais').innerHTML = (G('vl_locais')||[]).map(l => `<option value="${esc(l)}">`).join('');
 pintaCarteira(); atualiza(); sincronizar(false);
