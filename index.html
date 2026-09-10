@@ -67,6 +67,7 @@ body.consulta .card-acoes,body.consulta #btnAvulso,body.consulta .aba[data-tela=
 .tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
 .tag{font-size:11.5px;padding:2.5px 8px;border-radius:20px;background:var(--azul-cl);color:var(--azul-esc);font-weight:500}
 .tag.cinza{background:#EDF0F3;color:var(--cinza)}
+.tag.vl{background:var(--cinza);color:#fff;font-weight:600;letter-spacing:.03em}
 .tag.ok{background:var(--ok-cl);color:var(--ok)}
 .tag.alerta{background:var(--alerta-cl);color:var(--alerta)}
 .tag.erro{background:var(--erro-cl);color:var(--erro)}
@@ -424,12 +425,11 @@ function pintaHoje(){
   ligaCartoes(alvo);
 }
 
-const COND_REDUNDANTE = ['pendente subsolo', 'pendente superfície', 'pendente superficie'];
+const ROTULO_CONDUTOR = { 'condutor oficial':'Condutor Oficial', 'habilitado':'Condutor Reserva' };
 function etiquetaCondutor(c, p){
-  const v = String((c.cond || (p ? p.cond : '') || '')).trim();
-  if(!v) return '';
-  if(COND_REDUNDANTE.includes(v.toLowerCase())) return '';
-  return `<span class="tag cinza">${esc(v)}</span>`;
+  const v = String((c.cond || (p ? p.cond : '') || '')).trim().toLowerCase();
+  const r = ROTULO_CONDUTOR[v];
+  return r ? `<span class="tag cinza">${esc(r)}</span>` : '';
 }
 
 function cartao(c, comAcoes){
@@ -447,7 +447,7 @@ function cartao(c, comAcoes){
         <div class="tags">
           ${c.turno ? `<span class="tag cinza">${esc(c.turno)}</span>` : ''}
           <span class="tag">${esc(c.tipo || 'Reciclagem periódica')}</span>
-          ${c.vl ? `<span class="tag cinza">${esc(c.vl)}</span>` : ''}
+          ${c.vl ? `<span class="tag vl">${esc(c.vl)}</span>` : ''}
           ${etiquetaCondutor(c, p)}
           ${tagStatus}
         </div>
