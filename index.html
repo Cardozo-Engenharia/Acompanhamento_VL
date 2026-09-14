@@ -371,7 +371,7 @@ textarea{min-height:78px;resize:vertical}
 <script>
 /* ============ dados fixos ============ */
 const TIPOS = ['Acompanhamento inicial','Etapa superfície','Etapa subsolo','Reciclagem periódica','Pós-desvio ou evento','Solicitação do supervisor'];
-const RESULTADOS = [['Apto','verde'],['Apto com ressalva','ambar'],['Requer novo acompanhamento','vermelha']];
+const RESULTADOS = [['Apto','verde'],['Apto com ressalva','ambar'],['Reprovado','vermelha']];
 const BLOCOS = [
  { t:'Conduta e segurança', itens:[
    'Uso do cinto de segurança',
@@ -408,7 +408,7 @@ const BLOCOS = [
 ];
 const ITENS = BLOCOS.flatMap(b => b.itens);
 const TOTAL_ITENS = ITENS.length;
-const MOTIVOS = ['Colaborador em folga ou afastamento','Colaborador remanejado de equipe ou unidade','Colaborador em férias','VL indisponível ou em manutenção','Instrutor deslocado para outra demanda','Condição operacional na mina (interdição, evento, desmonte)','Reunião, treinamento ou DDS prioritário','Colaborador em atendimento no SESMT / ADF','Instrutor ausente (folga, atestado, férias)','Outro (descrever na observação)'];
+const MOTIVOS = ['Colaborador Ausente (falta, folga, atestado)','VL indisponível ou em manutenção','Instrutor deslocado para outra demanda','Condição operacional na mina (interdição, evento, desmonte)','Reunião, Treinamento ou DDS prioritário','Instrutor Ausente (falta, folga, atestado)','Outro (descrever na observação)'];
 const COND_ROTULO = {1:'Pendente Superfície',2:'Pendente Subsolo',3:'Condutor Oficial',4:'Habilitado'};
 
 /* ============ estado ============ */
@@ -694,7 +694,7 @@ function pintaProgresso(){
 function sugereResultado(){
   const q = contagem();
   if(q.faltam) return;
-  const sug = q.r === 0 ? 'Apto' : q.r <= 2 ? 'Apto com ressalva' : 'Requer novo acompanhamento';
+  const sug = q.r === 0 ? 'Apto' : q.r <= 2 ? 'Apto com ressalva' : 'Reprovado';
   if(!ficha.resultado || ficha.tocouResultado !== true){ ficha.resultado = sug; pintaResultado() }
 }
 
