@@ -851,7 +851,9 @@ listaNomes();
 const viaURL = new URLSearchParams(location.search);
 if(viaURL.get('api')){ CFG.endpoint = viaURL.get('api'); S('vl_cfg', CFG) }
 if(viaURL.get('instrutor')){ CFG.instrutor = viaURL.get('instrutor'); S('vl_cfg', CFG) }
-if(viaURL.get('modo')){ CFG.modo = viaURL.get('modo'); S('vl_cfg', CFG) }
+// o link manda: se vier com endereço da base, o modo é o que o link disser (padrão: registro)
+if(viaURL.get('modo')) { CFG.modo = viaURL.get('modo'); S('vl_cfg', CFG) }
+else if(viaURL.get('api')) { CFG.modo = 'registro'; S('vl_cfg', CFG) }
 const consulta = CFG.modo === 'consulta';
 document.body.classList.toggle('consulta', consulta);
 if(consulta){
