@@ -107,11 +107,27 @@ textarea{min-height:78px;resize:vertical}
 .pilula.on.verde{background:var(--ok);border-color:var(--ok)}
 .pilula.on.ambar{background:var(--alerta);border-color:var(--alerta)}
 .pilula.on.vermelha{background:var(--erro);border-color:var(--erro)}
-.item{display:flex;align-items:center;gap:10px;padding:11px 12px;border:1.5px solid var(--linha);border-radius:9px;margin-bottom:7px;background:var(--branco)}
-.item .txt{flex:1;font-size:14px;line-height:1.3}
-.marcar{width:26px;height:26px;border-radius:7px;border:1.5px solid var(--linha);flex:none;display:flex;align-items:center;justify-content:center;font-size:15px;color:transparent}
-.item.ressalva{border-color:var(--alerta);background:var(--alerta-cl)}
-.item.ressalva .marcar{background:var(--alerta);border-color:var(--alerta);color:#fff}
+.bloco{margin-bottom:18px}
+.bloco-topo{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.bloco-topo h4{margin:0;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--azul)}
+.btn-na{margin-left:auto;flex:none;font-size:10.5px;font-weight:700;color:var(--cinza);background:#EDF0F3;padding:5px 10px;border-radius:8px}
+.btn-na.on{background:var(--cinza);color:#fff}
+.item{display:flex;align-items:center;gap:9px;padding:9px 11px;border:1.5px solid var(--linha);border-radius:9px;margin-bottom:6px;background:var(--branco)}
+.item .txt{flex:1;min-width:0;font-size:13.5px;line-height:1.3}
+.item.rr{border-color:var(--alerta);background:var(--alerta-cl)}
+.item.nn{background:#F1F4F7;border-color:var(--linha)}
+.item.nn .txt{color:var(--cinza)}
+.seg{display:flex;gap:3px;flex:none}
+.seg button{width:39px;height:32px;border:1.3px solid var(--linha);border-radius:7px;background:var(--branco);color:var(--cinza-cl);font-size:15px;font-weight:700;line-height:1}
+.seg button.na{font-size:10.5px}
+.seg button.on.c{background:var(--ok);border-color:var(--ok);color:#fff}
+.seg button.on.r{background:var(--alerta);border-color:var(--alerta);color:#fff}
+.seg button.on.n{background:var(--cinza);border-color:var(--cinza);color:#fff}
+.progresso{position:sticky;top:0;z-index:20;background:var(--fundo);padding:8px 0 10px;font-size:12.5px;color:var(--cinza);display:flex;align-items:center;gap:9px}
+.barrinha{flex:1;height:6px;border-radius:4px;background:var(--linha);overflow:hidden}
+.barrinha i{display:block;height:100%;background:var(--azul);width:0;transition:width .2s}
+.progresso.completo{color:var(--ok);font-weight:600}
+.progresso.completo .barrinha i{background:var(--ok)}
 
 /* ---------- assinatura ---------- */
 .assina{border:1.5px dashed var(--linha);border-radius:9px;background:#FBFCFD;position:relative}
@@ -283,8 +299,9 @@ textarea{min-height:78px;resize:vertical}
   </div>
 
   <div class="grupo">
-    <span class="rot">Itens avaliados</span>
-    <div class="dica" style="margin:0 0 9px">Toque apenas nos itens em que houve ressalva. O que não for tocado conta como conforme.</div>
+    <span class="rot">Itens avaliados <span class="obr">*</span></span>
+    <div class="dica" style="margin:0 0 4px">Marque cada item: conforme, com ressalva ou N/A quando não se aplicar ao acompanhamento.</div>
+    <div class="progresso" id="progItens"><span id="progTxt"></span><span class="barrinha"><i id="progBar"></i></span></div>
     <div id="listaItens"></div>
   </div>
 
@@ -355,7 +372,42 @@ textarea{min-height:78px;resize:vertical}
 /* ============ dados fixos ============ */
 const TIPOS = ['Acompanhamento inicial','Etapa superfície','Etapa subsolo','Reciclagem periódica','Pós-desvio ou evento','Solicitação do supervisor'];
 const RESULTADOS = [['Apto','verde'],['Apto com ressalva','ambar'],['Requer novo acompanhamento','vermelha']];
-const ITENS = ['Uso do cinto de segurança','Verificação pré-operacional do veículo','Velocidade compatível com a via','Respeito à sinalização e à preferência','Comunicação via rádio nos pontos obrigatórios','Condução em rampa (subida e descida)','Ultrapassagem e cruzamento com equipamento de grande porte','Distância de segurança','Estacionamento, calço e desligamento','Postura defensiva e atenção ao entorno'];
+const BLOCOS = [
+ { t:'Conduta e segurança', itens:[
+   'Uso do cinto de segurança',
+   'Verificação pré-operacional do veículo - Check list',
+   'Velocidade compatível com a via',
+   'Respeito à sinalização e à preferência',
+   'Distância de segurança',
+   'Comunicação via rádio nos pontos obrigatórios',
+   'Ultrapassagem e cruzamento com equipamento de grande porte',
+   'Condução em rampa (subida e descida)',
+   'Estacionamento, calço e desligamento',
+   'Postura defensiva e atenção ao entorno' ]},
+ { t:'Tração e transmissão', itens:[
+   'Acionamento do 4x4 no momento e na velocidade corretos',
+   'Uso da reduzida em rampa e piso ruim',
+   'Retorno para 4x2 ao voltar ao piso firme',
+   'Escolha de marcha compatível com a rampa, sem forçar o motor' ]},
+ { t:'Embreagem', itens:[
+   'Arrancada em rampa sem patinar a embreagem',
+   'Não apoiar o pé no pedal durante a condução',
+   'Não segurar o veículo parado na rampa pela embreagem' ]},
+ { t:'Freio', itens:[
+   'Uso do freio motor na descida, em vez de freio de serviço contínuo',
+   'Frenagem progressiva, sem travar roda',
+   'Uso do freio de estacionamento ao parar' ]},
+ { t:'Motor e instrumentos', itens:[
+   'Respeito à faixa de rotação',
+   'Atenção às luzes de advertência e ao indicador de temperatura',
+   'Desligamento correto após esforço, pelo cuidado com o turbo' ]},
+ { t:'Preservação da carroceria', itens:[
+   'Atenção às laterais em galeria estreita',
+   'Redução ao transpor vala, lombada ou poça',
+   'Manobra em espaço confinado e posicionamento na baia' ]}
+];
+const ITENS = BLOCOS.flatMap(b => b.itens);
+const TOTAL_ITENS = ITENS.length;
 const MOTIVOS = ['Colaborador em folga ou afastamento','Colaborador remanejado de equipe ou unidade','Colaborador em férias','VL indisponível ou em manutenção','Instrutor deslocado para outra demanda','Condição operacional na mina (interdição, evento, desmonte)','Reunião, treinamento ou DDS prioritário','Colaborador em atendimento no SESMT / ADF','Instrutor ausente (folga, atestado, férias)','Outro (descrever na observação)'];
 const COND_ROTULO = {1:'Pendente Superfície',2:'Pendente Subsolo',3:'Condutor Oficial',4:'Habilitado'};
 
@@ -559,7 +611,7 @@ $('#modalQuem').onclick = e => { if(e.target.id === 'modalQuem' && CFG.instrutor
 /* ============ ficha ============ */
 function abrirFicha(c){
   if(precisaConfirmar()){ pedeNome(() => abrirFicha(c)); return }
-  ficha = { crono:c || null, itens:new Set(), resultado:'Apto', assinado:false };
+  ficha = { crono:c || null, estados:{}, resultado:'', assinado:false };
   const p = c ? porNome(c.nome) : null;
   $('#grupoAvulso').hidden = !!c;
   if(c){
@@ -586,19 +638,70 @@ function abrirFicha(c){
 }
 
 function pintaItens(){
-  $('#listaItens').innerHTML = ITENS.map((t,i) =>
-    `<div class="item" data-i="${i}"><div class="marcar">!</div><div class="txt">${esc(t)}</div></div>`).join('');
-  $$('#listaItens .item').forEach(el => el.onclick = () => {
-    const i = +el.dataset.i;
-    if(ficha.itens.has(i)) ficha.itens.delete(i); else ficha.itens.add(i);
-    el.classList.toggle('ressalva', ficha.itens.has(i));
-    if(ficha.itens.size && ficha.resultado === 'Apto'){ ficha.resultado = 'Apto com ressalva'; pintaResultado() }
+  let n = 0;
+  $('#listaItens').innerHTML = BLOCOS.map((b, bi) => {
+    const linhas = b.itens.map(t => {
+      const k = n++;
+      const e = ficha.estados[k] || '';
+      const cls = e === 'r' ? ' rr' : e === 'n' ? ' nn' : '';
+      const bt = (v, rot, extra) =>
+        `<button class="${v==='n'?'na ':''}${e===v?'on '+v:''}" data-k="${k}" data-v="${v}" aria-label="${extra}">${rot}</button>`;
+      return `<div class="item${cls}" data-k="${k}">
+        <div class="txt">${esc(t)}</div>
+        <div class="seg">${bt('c','✓','Conforme')}${bt('r','!','Com ressalva')}${bt('n','N/A','Não se aplica')}</div>
+      </div>`;
+    }).join('');
+    const base = BLOCOS.slice(0, bi).reduce((a, x) => a + x.itens.length, 0);
+    const todosNA = b.itens.every((_, k) => ficha.estados[base + k] === 'n');
+    return `<div class="bloco"><div class="bloco-topo"><h4>${esc(b.t)}</h4>
+      <button class="btn-na${todosNA ? ' on' : ''}" data-bloco="${bi}">Tudo N/A</button></div>${linhas}</div>`;
+  }).join('');
+
+  $$('#listaItens .seg button').forEach(b => b.onclick = () => {
+    const k = b.dataset.k;
+    ficha.estados[k] = (ficha.estados[k] === b.dataset.v) ? '' : b.dataset.v;
+    pintaItens(); sugereResultado();
   });
+  $$('#listaItens .btn-na').forEach(b => b.onclick = () => {
+    const bi = +b.dataset.bloco;
+    const base = BLOCOS.slice(0, bi).reduce((a, x) => a + x.itens.length, 0);
+    const ligado = BLOCOS[bi].itens.every((_, k) => ficha.estados[base + k] === 'n');
+    BLOCOS[bi].itens.forEach((_, k) => { ficha.estados[base + k] = ligado ? '' : 'n' });
+    pintaItens(); sugereResultado();
+  });
+  pintaProgresso();
 }
+
+function contagem(){
+  let c = 0, r = 0, na = 0;
+  for(let k = 0; k < TOTAL_ITENS; k++){
+    const e = ficha.estados[k];
+    if(e === 'c') c++; else if(e === 'r') r++; else if(e === 'n') na++;
+  }
+  return { c, r, na, respondidos: c + r + na, faltam: TOTAL_ITENS - (c + r + na) };
+}
+
+function pintaProgresso(){
+  const q = contagem();
+  const pct = Math.round(q.respondidos / TOTAL_ITENS * 100);
+  $('#progTxt').textContent = q.faltam
+    ? `${q.respondidos} de ${TOTAL_ITENS} avaliados`
+    : `${TOTAL_ITENS} de ${TOTAL_ITENS} avaliados`;
+  $('#progBar').style.width = pct + '%';
+  $('#progItens').classList.toggle('completo', !q.faltam);
+}
+
+function sugereResultado(){
+  const q = contagem();
+  if(q.faltam) return;
+  const sug = q.r === 0 ? 'Apto' : q.r <= 2 ? 'Apto com ressalva' : 'Requer novo acompanhamento';
+  if(!ficha.resultado || ficha.tocouResultado !== true){ ficha.resultado = sug; pintaResultado() }
+}
+
 function pintaResultado(){
   $('#pilResultado').innerHTML = RESULTADOS.map(([t,cor]) =>
     `<button class="pilula ${ficha.resultado===t?'on '+cor:''}" data-r="${esc(t)}">${esc(t)}</button>`).join('');
-  $$('#pilResultado .pilula').forEach(b => b.onclick = () => { ficha.resultado = b.dataset.r; pintaResultado() });
+  $$('#pilResultado .pilula').forEach(b => b.onclick = () => { ficha.resultado = b.dataset.r; ficha.tocouResultado = true; pintaResultado() });
 }
 
 /* ============ assinatura ============ */
@@ -638,6 +741,8 @@ $('#btnSalvar').onclick = () => {
   if(!$('#fFim').value) falta.push('horário de término');
   if(!$('#fLocal').value.trim()) falta.push('local ou trajeto');
   if(!$('#fVL').value.trim()) falta.push('VL utilizado');
+  const q = contagem();
+  if(q.faltam) falta.push(`avaliar ${q.faltam} ${q.faltam === 1 ? 'item' : 'itens'} da lista`);
   if(!ficha.resultado) falta.push('resultado');
   if(!ficha.assinado) falta.push('assinatura do colaborador');
   if(falta.length){ alerta('Falta preencher: ' + falta.join(', ') + '.'); return }
@@ -651,7 +756,9 @@ $('#btnSalvar').onclick = () => {
     equipe: (ficha.crono && ficha.crono.equipe) || (p?p.eq:''),
     turno: $('#fTurno').value, local: $('#fLocal').value.trim(), vl: $('#fVL').value.trim(),
     tipo: $('#fTipo').value, resultado: ficha.resultado,
-    ressalvas: [...ficha.itens].map(i => ITENS[i]).join(' | '),
+    ressalvas: ITENS.filter((_, k) => ficha.estados[k] === 'r').join(' | '),
+    naoAvaliados: ITENS.filter((_, k) => ficha.estados[k] === 'n').join(' | '),
+    resumoItens: `${q.c} conformes · ${q.r} ressalvas · ${q.na} N/A`,
     obs: $('#fObs').value.trim(), assinatura: (ctx ? cv.toDataURL('image/png') : ''),
     instrutor: CFG.instrutor, naoRealizado: false, motivo: '',
     preenchidoEm: new Date().toISOString()
@@ -681,7 +788,8 @@ $('#mSalvar').onclick = () => {
   const c = alvoMotivo;
   FILA.push({ idReg:'R'+Date.now().toString(36).toUpperCase(), idCrono:c.id, nome:c.nome, data:c.data,
     ini:'', fim:'', unidade:c.unidade, equipe:c.equipe, turno:c.turno||'', local:'', vl:'',
-    tipo:c.tipo||'', resultado:'', ressalvas:'', obs:$('#mObs').value.trim(), assinatura:'',
+    tipo:c.tipo||'', resultado:'', ressalvas:'', naoAvaliados:'', resumoItens:'',
+    obs:$('#mObs').value.trim(), assinatura:'',
     instrutor:CFG.instrutor, naoRealizado:true, motivo:m, preenchidoEm:new Date().toISOString() });
   S('vl_fila', FILA); marcarFeito(c.id);
   $('#modalMotivo').classList.remove('on'); atualiza();
@@ -750,9 +858,20 @@ function baixa(nome, conteudo, tipo){
 const cel = v => '"' + String(v==null?'':v).replace(/"/g,'""') + '"';
 
 function baixarCSV(){
-  const cab = ['ID Registro','ID Cronograma','Colaborador','Data','Hora início','Hora fim','Unidade','Equipe','Turno','Local / trajeto','VL utilizado','Tipo','Resultado','Itens com ressalva','Observações','Instrutor','Não realizado','Motivo','Preenchido em','Enviado em'];
-  const linhas = FILA.map(r => [r.idReg,r.idCrono,r.nome,brData(r.data),r.ini,r.fim,r.unidade,r.equipe,r.turno,r.local,r.vl,r.tipo,r.resultado,r.ressalvas,r.obs,r.instrutor,r.naoRealizado?'Sim':'Não',r.motivo,r.preenchidoEm,new Date().toISOString()].map(cel).join(';'));
+  const cab = ['ID Registro','ID Cronograma','Colaborador','Data','Hora início','Hora fim','Unidade','Equipe','Turno','Local / trajeto','VL utilizado','Tipo','Resultado','Resumo dos itens','Itens com ressalva','Itens não avaliados (N/A)','Observações','Instrutor','Não realizado','Motivo','Preenchido em','Enviado em'];
+  const linhas = FILA.map(r => [r.idReg,r.idCrono,r.nome,brData(r.data),r.ini,r.fim,r.unidade,r.equipe,r.turno,r.local,r.vl,r.tipo,r.resultado,r.resumoItens||'',r.ressalvas,r.naoAvaliados||'',r.obs,r.instrutor,r.naoRealizado?'Sim':'Não',r.motivo,r.preenchidoEm,new Date().toISOString()].map(cel).join(';'));
   baixa(`registros_vl_${hoje()}.csv`, '\ufeff' + cab.map(cel).join(';') + '\r\n' + linhas.join('\r\n'), 'text/csv;charset=utf-8');
+}
+
+function detalheItens(r){
+  const res = new Set((r.ressalvas||'').split(' | ').filter(Boolean));
+  const na  = new Set((r.naoAvaliados||'').split(' | ').filter(Boolean));
+  return '<div class="chk">' + BLOCOS.map(b =>
+    `<h3>${esc(b.t)}</h3><ul>` + b.itens.map(t => {
+      const e = res.has(t) ? 'Com ressalva' : na.has(t) ? 'N/A' : 'Conforme';
+      const cl = res.has(t) ? 'r' : na.has(t) ? 'n' : 'c';
+      return `<li><span class="e ${cl}">${e}</span>${esc(t)}</li>`;
+    }).join('') + '</ul>').join('') + '</div>';
 }
 
 function baixarEvidencias(){
@@ -774,10 +893,11 @@ function baixarEvidencias(){
       <tr><th>VL utilizado</th><td>${esc(r.vl)}</td></tr>
       <tr><th>Tipo</th><td>${esc(r.tipo)}</td></tr>
       <tr><th>Resultado</th><td><b>${esc(r.resultado)}</b></td></tr>
-      <tr><th>Itens com ressalva</th><td>${esc(r.ressalvas)||'Nenhum'}</td></tr>
+      <tr><th>Itens avaliados</th><td>${esc(r.resumoItens||'')}</td></tr>
       <tr><th>Observações</th><td>${esc(r.obs)||'—'}</td></tr>
       <tr><th>Instrutor</th><td>${esc(r.instrutor)}</td></tr>
       <tr><th>Preenchido em</th><td>${new Date(r.preenchidoEm).toLocaleString('pt-BR')}</td></tr></table>
+      ${detalheItens(r)}
       <div class="ass"><img src="${r.assinatura}" alt="Assinatura"><span>Assinatura do colaborador acompanhado</span></div>
     </article>`).join('');
   const doc = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8">
@@ -791,6 +911,12 @@ th{width:170px;color:#54585B;font-weight:600} .nr{color:#B33A30;font-weight:bold
 .ass{margin-top:13px;border-top:1px solid #DCE2EA;padding-top:11px}
 .ass img{display:block;max-width:290px;height:auto;border-bottom:1px solid #1D2329;padding-bottom:3px}
 .ass span{font-size:11px;color:#54585B;display:block;margin-top:4px}
+.chk{margin-top:13px;border-top:1px solid #DCE2EA;padding-top:10px}
+.chk h3{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#1551A7;margin:10px 0 5px}
+.chk ul{list-style:none;margin:0;padding:0}
+.chk li{padding:3px 0;border-bottom:1px solid #F3F5F8;font-size:12px}
+.chk .e{display:inline-block;min-width:96px;font-weight:bold;font-size:11px}
+.chk .e.c{color:#1B7A4B} .chk .e.r{color:#B0741A} .chk .e.n{color:#8A9199}
 </style></head><body><h1>Evidências de acompanhamento de VL</h1>
 <p class="sub">Cardozo Engenharia Elétrica e Montagem Mecânica · Instrutor: ${esc(CFG.instrutor)} · Gerado em ${new Date().toLocaleString('pt-BR')} · ${FILA.length} registro(s)</p>
 ${fichas}</body></html>`;
