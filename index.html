@@ -158,6 +158,10 @@ textarea{min-height:78px;resize:vertical}
 
 /* ---------- resumo ---------- */
 .tira{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
+.tira.q4{grid-template-columns:repeat(4,1fr);gap:6px}
+.tira.q4 .mini{padding:10px 4px}
+.tira.q4 .mini b{font-size:18px}
+.tira.q4 .mini span{font-size:10px}
 .mini{background:var(--branco);border:1px solid var(--linha);border-radius:9px;padding:11px 8px;text-align:center;box-shadow:var(--sombra)}
 .mini b{display:block;font-size:21px;font-weight:600;line-height:1.1;color:var(--azul)}
 .mini span{font-size:11px;color:var(--cinza);line-height:1.25;display:block;margin-top:3px}
@@ -451,18 +455,46 @@ addEventListener('online', rede); addEventListener('offline', rede); rede();
 
 /* ============ carteira / cronograma ============ */
 function porNome(n){ return CARTEIRA.find(c => c.nome.trim() === String(n||'').trim()) }
-function jaRegistrado(id){ return FILA.some(r => r.idCrono === id) || (G('vl_feitos')||[]).includes(id) }
-function marcarFeito(id){ if(!id) return; const f = G('vl_feitos')||[]; if(!f.includes(id)){ f.push(id); S('vl_feitos', f) } }
+function semAcento(t){ return String(t||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim() }
+
+function feitosLocal(){
+  const v = G('vl_feitos');
+  if(Array.isArray(v)){ const o = {}; v.forEach(id => o[id] = 'ok'); S('vl_feitos', o); return o }
+  return v || {};
+}
+function marcarFeito(id, estado){ if(!id) return; const f = feitosLocal(); f[id] = estado; S('vl_feitos', f) }
+
+/* 'ok' = realizado | 'nao' = nao realizado | 'previsto' = ainda em aberto */
+function estadoDe(c){
+  const pend = FILA.find(r => r.idCrono === c.id);
+  if(pend) return pend.naoRealizado ? 'nao' : 'ok';
+  const st = semAcento(c.status);
+  if(st === 'realizado') return 'ok';
+  if(st.indexOf('nao realizado') === 0) return 'nao';
+  const l = feitosLocal()[c.id];
+  if(l) return l;
+  return 'previsto';
+}
+function jaRegistrado(id){
+  const c = CRONO.find(x => x.id === id);
+  return c ? estadoDe(c) !== 'previsto' : false;
+}
+function resumo(lista){
+  let ok = 0, nao = 0;
+  lista.forEach(c => { const e = estadoDe(c); if(e === 'ok') ok++; else if(e === 'nao') nao++; });
+  return { total: lista.length, ok, nao, aberto: lista.length - ok - nao,
+           aderencia: lista.length ? Math.round(ok / lista.length * 100) : 0 };
+}
 
 /* ============ tela Hoje ============ */
 function pintaHoje(){
   const d = $('#dataHoje').value || hoje();
   const itens = CRONO.filter(c => c.data === d);
-  const feitos = itens.filter(c => jaRegistrado(c.id)).length;
+  const q = resumo(itens);
   $('#tiraHoje').innerHTML =
-    `<div class="mini"><b>${itens.length}</b><span>Previstos</span></div>
-     <div class="mini ok"><b>${feitos}</b><span>Registrados</span></div>
-     <div class="mini alerta"><b>${itens.length-feitos}</b><span>Em aberto</span></div>`;
+    `<div class="mini"><b>${q.total}</b><span>Previstos</span></div>
+     <div class="mini ok"><b>${q.ok}</b><span>Realizados</span></div>
+     <div class="mini alerta"><b>${q.aberto}</b><span>Em aberto</span></div>`;
 
   const alvo = $('#listaHoje');
   if(!CRONO.length){
@@ -488,9 +520,10 @@ function etiquetaCondutor(c, p){
 function cartao(c, comAcoes){
   const p = porNome(c.nome);
   const pri = c.pri || (p ? p.pri : 4);
-  const feito = jaRegistrado(c.id);
-  const tagStatus = feito ? '<span class="tag ok">Registrado</span>'
-    : (c.status && c.status !== 'Previsto' ? `<span class="tag ${c.status==='Não realizado'?'erro':'cinza'}">${esc(c.status)}</span>` : '');
+  const e = estadoDe(c);
+  const feito = e !== 'previsto';
+  const tagStatus = e === 'ok' ? '<span class="tag ok">Realizado</span>'
+    : e === 'nao' ? '<span class="tag erro">Não realizado</span>' : '';
   return `<div class="card" data-id="${esc(c.id)}">
     <div class="card-topo">
       <div class="pri p${pri}"></div>
@@ -528,7 +561,7 @@ function pintaMes(){
     el.innerHTML = el.options[0].outerHTML + vals.map(v => `<option>${esc(v)}</option>`).join('');
     el.value = atual;
   };
-  enche('#fStatus', ['Previsto','Registrado','Não realizado']);
+  enche('#fStatus', ['Previsto','Realizado','Não realizado']);
   enche('#fUnidade', [...new Set(CRONO.map(c=>c.unidade).filter(Boolean))].sort());
   enche('#fEquipe',  [...new Set(CRONO.map(c=>c.equipe).filter(Boolean))].sort());
 
@@ -538,16 +571,17 @@ function pintaMes(){
   if(fu) l = l.filter(c => c.unidade === fu);
   if(fe) l = l.filter(c => c.equipe === fe);
   if(q)  l = l.filter(c => c.nome.toLowerCase().includes(q));
-  if(fs === 'Registrado') l = l.filter(c => jaRegistrado(c.id));
-  else if(fs === 'Previsto') l = l.filter(c => !jaRegistrado(c.id));
-  else if(fs === 'Não realizado') l = l.filter(c => FILA.some(r => r.idCrono===c.id && r.naoRealizado));
+  if(fs === 'Realizado') l = l.filter(c => estadoDe(c) === 'ok');
+  else if(fs === 'Previsto') l = l.filter(c => estadoDe(c) === 'previsto');
+  else if(fs === 'Não realizado') l = l.filter(c => estadoDe(c) === 'nao');
 
-  const feitos = CRONO.filter(c => jaRegistrado(c.id)).length;
-  const perc = CRONO.length ? Math.round(feitos/CRONO.length*100) : 0;
+  const r = resumo(CRONO);
+  $('#tiraMes').className = 'tira q4';
   $('#tiraMes').innerHTML =
-    `<div class="mini"><b>${CRONO.length}</b><span>No cronograma</span></div>
-     <div class="mini ok"><b>${feitos}</b><span>Registrados</span></div>
-     <div class="mini ${perc>=80?'ok':perc>=50?'alerta':'erro'}"><b>${perc}%</b><span>Aderência</span></div>`;
+    `<div class="mini"><b>${r.total}</b><span>Previstos</span></div>
+     <div class="mini ok"><b>${r.ok}</b><span>Realizados</span></div>
+     <div class="mini erro"><b>${r.nao}</b><span>Não realizados</span></div>
+     <div class="mini ${r.aderencia>=80?'ok':r.aderencia>=50?'alerta':'erro'}"><b>${r.aderencia}%</b><span>Aderência</span></div>`;
 
   const alvo = $('#listaMes');
   if(!l.length){ alvo.innerHTML = `<div class="vazio"><div class="g">○</div><p>Nenhum item com esses filtros.</p></div>`; return }
@@ -765,7 +799,7 @@ $('#btnSalvar').onclick = () => {
   };
   const locais = G('vl_locais') || [];
   if(reg.local && !locais.includes(reg.local)){ locais.unshift(reg.local); S('vl_locais', locais.slice(0,25)) }
-  FILA.push(reg); S('vl_fila', FILA); marcarFeito(reg.idCrono);
+  FILA.push(reg); S('vl_fila', FILA); marcarFeito(reg.idCrono, 'ok');
   atualiza(); irPara('hoje');
   alerta('Registro salvo no aparelho. Envie ao final do turno, quando tiver sinal.');
 };
@@ -791,7 +825,7 @@ $('#mSalvar').onclick = () => {
     tipo:c.tipo||'', resultado:'', ressalvas:'', naoAvaliados:'', resumoItens:'',
     obs:$('#mObs').value.trim(), assinatura:'',
     instrutor:CFG.instrutor, naoRealizado:true, motivo:m, preenchidoEm:new Date().toISOString() });
-  S('vl_fila', FILA); marcarFeito(c.id);
+  S('vl_fila', FILA); marcarFeito(c.id, 'nao');
   $('#modalMotivo').classList.remove('on'); atualiza();
 };
 
