@@ -162,6 +162,7 @@ textarea{min-height:78px;resize:vertical}
 .tira.q4 .mini{padding:10px 4px}
 .tira.q4 .mini b{font-size:18px}
 .tira.q4 .mini span{font-size:10px}
+.nota{font-size:12px;color:var(--cinza);line-height:1.45;margin:-6px 0 14px;padding:0 2px}
 .mini{background:var(--branco);border:1px solid var(--linha);border-radius:9px;padding:11px 8px;text-align:center;box-shadow:var(--sombra)}
 .mini b{display:block;font-size:21px;font-weight:600;line-height:1.1;color:var(--azul)}
 .mini span{font-size:11px;color:var(--cinza);line-height:1.25;display:block;margin-top:3px}
@@ -215,6 +216,7 @@ textarea{min-height:78px;resize:vertical}
 <!-- ================= CRONOGRAMA ================= -->
 <section class="tela" id="tela-mes">
   <div class="tira" id="tiraMes"></div>
+  <div class="nota" id="notaMes"></div>
   <div class="filtros">
     <select id="fStatus"><option value="">Todos os status</option></select>
     <select id="fUnidade"><option value="">Todas as unidades</option></select>
@@ -480,10 +482,19 @@ function jaRegistrado(id){
   return c ? estadoDe(c) !== 'previsto' : false;
 }
 function resumo(lista){
-  let ok = 0, nao = 0;
-  lista.forEach(c => { const e = estadoDe(c); if(e === 'ok') ok++; else if(e === 'nao') nao++; });
-  return { total: lista.length, ok, nao, aberto: lista.length - ok - nao,
-           aderencia: lista.length ? Math.round(ok / lista.length * 100) : 0 };
+  const hj = hoje();
+  let ok = 0, nao = 0, aVencer = 0;
+  lista.forEach(c => {
+    const e = estadoDe(c);
+    if(e === 'ok') ok++;
+    else if(e === 'nao') nao++;
+    else if(c.data > hj) aVencer++;
+  });
+  const vencidos = lista.length - aVencer;
+  return { total: lista.length, ok, nao, aVencer, vencidos,
+           aberto: lista.length - ok - nao,
+           atrasados: vencidos - ok - nao,
+           aderencia: vencidos ? Math.round(ok / vencidos * 100) : 0 };
 }
 
 /* ============ tela Hoje ============ */
@@ -582,6 +593,11 @@ function pintaMes(){
      <div class="mini ok"><b>${r.ok}</b><span>Realizados</span></div>
      <div class="mini erro"><b>${r.nao}</b><span>Não realizados</span></div>
      <div class="mini ${r.aderencia>=80?'ok':r.aderencia>=50?'alerta':'erro'}"><b>${r.aderencia}%</b><span>Aderência</span></div>`;
+  $('#notaMes').textContent = r.vencidos
+    ? `Aderência sobre ${r.vencidos} ${r.vencidos === 1 ? 'acompanhamento vencido' : 'acompanhamentos vencidos'}` +
+      (r.atrasados ? `, sendo ${r.atrasados} sem registro` : '') +
+      (r.aVencer ? `. Outros ${r.aVencer} ainda a vencer.` : '.')
+    : `Nenhum acompanhamento venceu ainda. ${r.aVencer} programados para os próximos dias.`;
 
   const alvo = $('#listaMes');
   if(!l.length){ alvo.innerHTML = `<div class="vazio"><div class="g">○</div><p>Nenhum item com esses filtros.</p></div>`; return }
