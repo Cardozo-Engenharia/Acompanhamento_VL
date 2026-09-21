@@ -215,14 +215,20 @@ textarea{min-height:78px;resize:vertical}
 
 <!-- ================= CRONOGRAMA ================= -->
 <section class="tela" id="tela-mes">
-  <div class="tira" id="tiraMes"></div>
-  <div class="nota" id="notaMes"></div>
   <div class="filtros">
+    <select id="fPeriodo">
+      <option value="mes">Este mês</option>
+      <option value="semana">Esta semana</option>
+      <option value="anterior">Mês anterior</option>
+      <option value="">Todo o histórico</option>
+    </select>
     <select id="fStatus"><option value="">Todos os status</option></select>
     <select id="fUnidade"><option value="">Todas as unidades</option></select>
     <select id="fEquipe"><option value="">Todas as equipes</option></select>
   </div>
   <input type="text" id="fBusca" placeholder="Buscar colaborador" style="margin-bottom:12px">
+  <div class="tira" id="tiraMes"></div>
+  <div class="nota" id="notaMes"></div>
   <div id="listaMes"></div>
 </section>
 
@@ -430,7 +436,8 @@ let alvoMotivo = null;
 
 const $ = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
-const hoje = () => new Date().toISOString().slice(0,10);
+const isoLocal = d => d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+const hoje = () => isoLocal(new Date());
 const brData = d => d ? d.split('-').reverse().join('/') : '';
 const agora = () => { const d=new Date(); return d.getHours().toString().padStart(2,'0')+':'+d.getMinutes().toString().padStart(2,'0') };
 const esc = t => String(t==null?'':t).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -483,17 +490,17 @@ function jaRegistrado(id){
 }
 function resumo(lista){
   const hj = hoje();
-  let ok = 0, nao = 0, aVencer = 0;
+  let ok = 0, nao = 0, atrasados = 0, aVencer = 0;
   lista.forEach(c => {
     const e = estadoDe(c);
-    if(e === 'ok') ok++;
-    else if(e === 'nao') nao++;
-    else if(c.data > hj) aVencer++;
+    if(e === 'ok') ok++;                    // realizado conta sempre, inclusive hoje
+    else if(e === 'nao') nao++;             // nao realizado conta sempre
+    else if(c.data < hj) atrasados++;       // dia ja passou e ninguem registrou
+    else aVencer++;                         // hoje ou futuro: ainda pode ser feito
   });
-  const vencidos = lista.length - aVencer;
-  return { total: lista.length, ok, nao, aVencer, vencidos,
+  const vencidos = ok + nao + atrasados;
+  return { total: lista.length, ok, nao, atrasados, aVencer, vencidos,
            aberto: lista.length - ok - nao,
-           atrasados: vencidos - ok - nao,
            aderencia: vencidos ? Math.round(ok / vencidos * 100) : 0 };
 }
 
@@ -578,7 +585,9 @@ function pintaMes(){
 
   const fs = $('#fStatus').value, fu = $('#fUnidade').value, fe = $('#fEquipe').value;
   const q = $('#fBusca').value.trim().toLowerCase();
-  let l = CRONO.slice();
+  const [pIni, pFim] = periodo($('#fPeriodo').value);
+  const noPeriodo = CRONO.filter(c => (!pIni || c.data >= pIni) && (!pFim || c.data <= pFim));
+  let l = noPeriodo.slice();
   if(fu) l = l.filter(c => c.unidade === fu);
   if(fe) l = l.filter(c => c.equipe === fe);
   if(q)  l = l.filter(c => c.nome.toLowerCase().includes(q));
@@ -586,7 +595,7 @@ function pintaMes(){
   else if(fs === 'Previsto') l = l.filter(c => estadoDe(c) === 'previsto');
   else if(fs === 'Não realizado') l = l.filter(c => estadoDe(c) === 'nao');
 
-  const r = resumo(CRONO);
+  const r = resumo(noPeriodo);
   $('#tiraMes').className = 'tira q4';
   $('#tiraMes').innerHTML =
     `<div class="mini"><b>${r.total}</b><span>Previstos</span></div>
@@ -608,7 +617,19 @@ function pintaMes(){
   ).join('');
   ligaCartoes(alvo);
 }
-['#fStatus','#fUnidade','#fEquipe','#fBusca'].forEach(s => $(s).oninput = pintaMes);
+['#fPeriodo','#fStatus','#fUnidade','#fEquipe','#fBusca'].forEach(s => $(s).oninput = pintaMes);
+
+function periodo(v){
+  const d = new Date(); d.setHours(12,0,0,0);
+  if(v === 'semana'){
+    const ini = new Date(d); ini.setDate(d.getDate() - ((d.getDay() + 6) % 7));   // segunda
+    const fim = new Date(ini); fim.setDate(ini.getDate() + 6);                   // domingo
+    return [isoLocal(ini), isoLocal(fim)];
+  }
+  if(v === 'mes')      return [isoLocal(new Date(d.getFullYear(), d.getMonth(), 1)), isoLocal(new Date(d.getFullYear(), d.getMonth()+1, 0))];
+  if(v === 'anterior') return [isoLocal(new Date(d.getFullYear(), d.getMonth()-1, 1)), isoLocal(new Date(d.getFullYear(), d.getMonth(), 0))];
+  return ['', ''];
+}
 
 /* ============ tela Carteira ============ */
 function pintaCarteira(){
