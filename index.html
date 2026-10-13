@@ -471,6 +471,22 @@ function feitosLocal(){
   if(Array.isArray(v)){ const o = {}; v.forEach(id => o[id] = 'ok'); S('vl_feitos', o); return o }
   return v || {};
 }
+/* A base e a fonte da verdade. Se ela diz Previsto para um item que este aparelho
+   marcou como feito e que nao esta mais na fila, o registro se perdeu no caminho. */
+function limpaMarcasVencidas(){
+  const f = feitosLocal(), perdidos = [];
+  let mudou = false;
+  Object.keys(f).forEach(id => {
+    const c = CRONO.find(x => x.id === id);
+    if(!c){ delete f[id]; mudou = true; return }
+    if(FILA.some(r => r.idCrono === id)) return;
+    const st = semAcento(c.status);
+    if(st === '' || st === 'previsto'){ perdidos.push(c.nome + ' (' + brData(c.data) + ')'); delete f[id]; mudou = true }
+  });
+  if(mudou) S('vl_feitos', f);
+  return perdidos;
+}
+
 function marcarFeito(id, estado){ if(!id) return; const f = feitosLocal(); f[id] = estado; S('vl_feitos', f) }
 
 /* 'ok' = realizado | 'nao' = nao realizado | 'previsto' = ainda em aberto */
@@ -478,6 +494,7 @@ function estadoDe(c){
   const pend = FILA.find(r => r.idCrono === c.id);
   if(pend) return pend.naoRealizado ? 'nao' : 'ok';
   const st = semAcento(c.status);
+  if(st.indexOf('reprogramado') === 0 || st.indexOf('cancelado') === 0) return 'fora';
   if(st === 'realizado') return 'ok';
   if(st.indexOf('nao realizado') === 0) return 'nao';
   const l = feitosLocal()[c.id];
@@ -490,17 +507,19 @@ function jaRegistrado(id){
 }
 function resumo(lista){
   const hj = hoje();
-  let ok = 0, nao = 0, atrasados = 0, aVencer = 0;
+  let ok = 0, nao = 0, atrasados = 0, aVencer = 0, fora = 0;
   lista.forEach(c => {
     const e = estadoDe(c);
-    if(e === 'ok') ok++;                    // realizado conta sempre, inclusive hoje
+    if(e === 'fora') fora++;                // reprogramado ou cancelado: fora da conta
+    else if(e === 'ok') ok++;               // realizado conta sempre, inclusive hoje
     else if(e === 'nao') nao++;             // nao realizado conta sempre
     else if(c.data < hj) atrasados++;       // dia ja passou e ninguem registrou
     else aVencer++;                         // hoje ou futuro: ainda pode ser feito
   });
   const vencidos = ok + nao + atrasados;
-  return { total: lista.length, ok, nao, atrasados, aVencer, vencidos,
-           aberto: lista.length - ok - nao,
+  const total = lista.length - fora;
+  return { total, fora, ok, nao, atrasados, aVencer, vencidos,
+           aberto: total - ok - nao,
            aderencia: vencidos ? Math.round(ok / vencidos * 100) : 0 };
 }
 
@@ -541,7 +560,8 @@ function cartao(c, comAcoes){
   const e = estadoDe(c);
   const feito = e !== 'previsto';
   const tagStatus = e === 'ok' ? '<span class="tag ok">Realizado</span>'
-    : e === 'nao' ? '<span class="tag erro">Não realizado</span>' : '';
+    : e === 'nao' ? '<span class="tag erro">Não realizado</span>'
+    : e === 'fora' ? `<span class="tag cinza">${esc(c.status)}</span>` : '';
   return `<div class="card" data-id="${esc(c.id)}">
     <div class="card-topo">
       <div class="pri p${pri}"></div>
@@ -579,7 +599,7 @@ function pintaMes(){
     el.innerHTML = el.options[0].outerHTML + vals.map(v => `<option>${esc(v)}</option>`).join('');
     el.value = atual;
   };
-  enche('#fStatus', ['Previsto','Realizado','Não realizado']);
+  enche('#fStatus', ['Previsto','Realizado','Não realizado','Reprogramado']);
   enche('#fUnidade', [...new Set(CRONO.map(c=>c.unidade).filter(Boolean))].sort());
   enche('#fEquipe',  [...new Set(CRONO.map(c=>c.equipe).filter(Boolean))].sort());
 
@@ -594,6 +614,7 @@ function pintaMes(){
   if(fs === 'Realizado') l = l.filter(c => estadoDe(c) === 'ok');
   else if(fs === 'Previsto') l = l.filter(c => estadoDe(c) === 'previsto');
   else if(fs === 'Não realizado') l = l.filter(c => estadoDe(c) === 'nao');
+  else if(fs === 'Reprogramado') l = l.filter(c => estadoDe(c) === 'fora');
 
   const r = resumo(noPeriodo);
   $('#tiraMes').className = 'tira q4';
@@ -605,8 +626,10 @@ function pintaMes(){
   $('#notaMes').textContent = r.vencidos
     ? `Aderência sobre ${r.vencidos} ${r.vencidos === 1 ? 'acompanhamento vencido' : 'acompanhamentos vencidos'}` +
       (r.atrasados ? `, sendo ${r.atrasados} sem registro` : '') +
-      (r.aVencer ? `. Outros ${r.aVencer} ainda a vencer.` : '.')
-    : `Nenhum acompanhamento venceu ainda. ${r.aVencer} programados para os próximos dias.`;
+      (r.aVencer ? `. Outros ${r.aVencer} ainda a vencer.` : '.') +
+      (r.fora ? ` ${r.fora} reprogramado(s) ou cancelado(s) ficam fora da conta.` : '')
+    : `Nenhum acompanhamento venceu ainda. ${r.aVencer} programados para os próximos dias.` +
+      (r.fora ? ` ${r.fora} reprogramado(s) ou cancelado(s) ficam fora da conta.` : '');
 
   const alvo = $('#listaMes');
   if(!l.length){ alvo.innerHTML = `<div class="vazio"><div class="g">○</div><p>Nenhum item com esses filtros.</p></div>`; return }
@@ -867,13 +890,46 @@ $('#mSalvar').onclick = () => {
 };
 
 /* ============ envio ============ */
+/* guarda uma copia dos registros enviados, para reenviar se algum se perder.
+   Reenviar nao duplica: a base recusa um ID de registro que ja existe. */
+function guardaEnviado(r){
+  const h = G('vl_enviados') || [];
+  if(!h.some(x => x.idReg === r.idReg)){ h.unshift(r); S('vl_enviados', h.slice(0, 60)) }
+}
+
+async function reenviar(){
+  const h = G('vl_enviados') || [];
+  if(!h.length){ alerta('Não há cópia de registros enviados neste aparelho.'); return }
+  if(!CFG.endpoint || !navigator.onLine){ alerta('Precisa de sinal para reenviar.'); return }
+  if(!confirm(`Reenviar os ${h.length} últimos registros deste aparelho?\n\nOs que já estiverem na base são recusados automaticamente, então nada é duplicado.`)) return;
+  const b = $('#btnReenviar'); if(b){ b.disabled = true; b.textContent = 'Reenviando...' }
+  let novos = 0, repetidos = 0, falhas = 0;
+  for(const r of h){
+    try{
+      const resp = await fetch(CFG.endpoint, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+        body: JSON.stringify({ ...r, enviadoEm: new Date().toISOString() }) });
+      const j = await resp.json();
+      if(!j || j.ok === false) falhas++;
+      else if(j.repetido) repetidos++;
+      else novos++;
+    }catch(e){ falhas++ }
+  }
+  if(b){ b.disabled = false; b.textContent = 'Reenviar registros já enviados' }
+  await sincronizar(false);
+  alerta(`${novos} registro(s) recuperado(s), ${repetidos} já estavam na base` + (falhas ? `, ${falhas} falharam.` : '.'));
+}
+
 function pintaFila(){
   const n = FILA.length;
   $('#pinoFila').hidden = !n; $('#pinoFila').textContent = n;
   $('#avisoFila').innerHTML = n ? `<div class="aviso ambar"><b>${n} registro${n>1?'s':''} aguardando envio.</b> Envie ao final do turno, na superfície.</div>` : '';
   const p = $('#painelFila');
   if(!n){
-    p.innerHTML = `<div class="aviso verde">Nenhum registro pendente. Tudo que foi preenchido já saiu do aparelho.</div>`;
+    const h = G('vl_enviados') || [];
+    p.innerHTML = `<div class="aviso verde">Nenhum registro pendente. Tudo que foi preenchido já saiu do aparelho.</div>` +
+      (h.length ? `<button class="btn sec" id="btnReenviar">Reenviar registros já enviados</button>
+        <div class="dica" style="text-align:center;margin-top:8px">Use se algum acompanhamento não apareceu na planilha. Os ${h.length} últimos registros deste aparelho são enviados de novo, e os que já estão na base são recusados sem duplicar.</div>` : '');
+    if(h.length) $('#btnReenviar').onclick = reenviar;
     return;
   }
   p.innerHTML = `<div class="aviso ambar">Estes registros estão guardados só neste aparelho. Não limpe os dados do navegador antes de enviar.</div>` +
@@ -887,12 +943,14 @@ function pintaFila(){
     `<button class="btn" id="btnEnviar" style="margin-top:14px">Enviar ${n} registro${n>1?'s':''}</button>
      <button class="btn sec" id="btnEvid">Baixar evidências (HTML)</button>
      <button class="btn sec" id="btnCSV">Baixar dados (CSV)</button>
+     <button class="btn sec" id="btnReenviar">Reenviar registros já enviados</button>
      <button class="btn cinza" id="btnConcluir">Marcar como enviados e limpar</button>
      <div class="dica" style="text-align:center;margin-top:8px">Só limpe depois de confirmar que os arquivos chegaram na pasta do OneDrive.</div>`;
 
   $('#btnEnviar').onclick = enviar;
   $('#btnEvid').onclick = baixarEvidencias;
   $('#btnCSV').onclick = baixarCSV;
+  if($('#btnReenviar')) $('#btnReenviar').onclick = reenviar;
   $('#btnConcluir').onclick = () => {
     if(confirm('Confirma que os registros já foram salvos na pasta compartilhada? Eles serão apagados deste aparelho.')){
       FILA = []; S('vl_fila', FILA); atualiza();
@@ -912,7 +970,9 @@ async function enviar(){
     try{
       const resp = await fetch(CFG.endpoint, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
         body: JSON.stringify({ ...r, enviadoEm: new Date().toISOString() }) });
-      if(!resp.ok) restam.push(r);
+      let aceito = resp.ok;
+      if(aceito){ try{ const j = await resp.json(); if(j && j.ok === false) aceito = false }catch(e){} }
+      if(aceito) guardaEnviado(r); else restam.push(r);
     }catch(e){ restam.push(r) }
   }
   const ok = FILA.length - restam.length;
@@ -1010,7 +1070,10 @@ async function sincronizar(manual){
     S('vl_crono', CRONO);
     if(Array.isArray(j.carteira) && j.carteira.length){ CARTEIRA = j.carteira; S('vl_carteira', CARTEIRA); listaNomes(); pintaCarteira() }
     S('vl_sync', new Date().toISOString());
+    const soltos = limpaMarcasVencidas();
     atualiza();
+    if(soltos.length) alerta(`${soltos.length} acompanhamento${soltos.length>1?'s':''} que havia${soltos.length>1?'m':''} sido preenchido${soltos.length>1?'s':''} não chegou(aram) na base e voltou(aram) a ficar em aberto:\n\n` +
+      soltos.map(n => '• ' + n).join('\n') + '\n\nUse "Reenviar registros já enviados" na aba Envio ou registre de novo.');
     if(manual) alerta('Cronograma atualizado: ' + CRONO.length + ' acompanhamentos.');
   }catch(e){
     if(manual) alerta('Não foi possível atualizar agora. O cronograma que está no aparelho continua valendo.');
